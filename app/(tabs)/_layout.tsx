@@ -1,3 +1,4 @@
+import 'react-native-url-polyfill/auto';
 import { Tabs } from 'expo-router';
 import React from 'react';
 

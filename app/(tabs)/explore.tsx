@@ -1,112 +1,144 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
-import { Collapsible } from '@/components/ui/collapsible';
-import { ExternalLink } from '@/components/external-link';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Fonts } from '@/constants/theme';
+export default function ProfileScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [qcid, setQcid] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [session, setSession] = useState<any>(null);
 
-export default function TabTwoScreen() {
+  // Check if a user is already logged in when the tab opens
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+  }, []);
+
+  async function signInWithEmail() {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) Alert.alert("Login Failed", error.message);
+    setLoading(false);
+  }
+
+  async function signUpWithEmail() {
+    setLoading(true);
+    const { data: { session }, error } = await supabase.auth.signUp({ email, password });
+    
+    if (error) {
+      Alert.alert("Sign Up Failed", error.message);
+    } else if (!session) {
+      Alert.alert("Check your email", "Please check your inbox for verification!");
+    } else {
+      Alert.alert("Success!", "Account created.");
+    }
+    setLoading(false);
+  }
+
+  async function updateQCID() {
+    if (!session?.user?.id) return;
+    setLoading(true);
+    
+    // Upsert the QCID into the profiles table we created earlier
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({ id: session.user.id, qcid_number: qcid, is_verified_pwd: true });
+
+    if (error) {
+      Alert.alert("Error", error.message);
+    } else {
+      Alert.alert("Success", "QCID Linked Successfully! You are now a verified mapper.");
+    }
+    setLoading(false);
+  }
+
+  // --- UI FOR LOGGED IN USERS ---
+  if (session && session.user) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.header}>Welcome to PWMap</Text>
+        <Text style={styles.subtext}>Logged in as: {session.user.email}</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.label}>Link your Quezon City ID (QCID)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter QCID Number"
+            value={qcid}
+            onChangeText={setQcid}
+          />
+          <TouchableOpacity style={[styles.button, styles.buttonBlue]} onPress={updateQCID} disabled={loading}>
+            <Text style={styles.buttonText}>{loading ? "Saving..." : "Verify QCID"}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity 
+          style={[styles.button, styles.buttonCancel]} 
+          onPress={() => supabase.auth.signOut()}
+        >
+          <Text style={styles.buttonText}>Sign Out</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // --- UI FOR GUESTS (LOGIN / SIGNUP) ---
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
+    <View style={styles.container}>
+      <Text style={styles.header}>Join PWMap</Text>
+      <Text style={styles.subtext}>Sign in to verify facilities and build your trust score.</Text>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          onChangeText={setEmail}
+          value={email}
+          placeholder="email@address.com"
+          autoCapitalize="none"
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText
-          type="title"
-          style={{
-            fontFamily: Fonts.rounded,
-          }}>
-          Explore
-        </ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image
-          source={require('@/assets/images/react-logo.png')}
-          style={{ width: 100, height: 100, alignSelf: 'center' }}
+      </View>
+
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          style={styles.input}
+          onChangeText={setPassword}
+          value={password}
+          secureTextEntry={true}
+          placeholder="Password"
+          autoCapitalize="none"
         />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful{' '}
-          <ThemedText type="defaultSemiBold" style={{ fontFamily: Fonts.mono }}>
-            react-native-reanimated
-          </ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+      </View>
+
+      <TouchableOpacity style={[styles.button, styles.buttonGreen]} onPress={signInWithEmail} disabled={loading}>
+        <Text style={styles.buttonText}>Sign In</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.button, styles.buttonBlue]} onPress={signUpWithEmail} disabled={loading}>
+        <Text style={styles.buttonText}>Create Account</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
-  },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  container: { flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#f5f5f5' },
+  header: { fontSize: 28, fontWeight: 'bold', marginBottom: 5, textAlign: 'center' },
+  subtext: { fontSize: 14, color: '#666', marginBottom: 30, textAlign: 'center' },
+  card: { backgroundColor: 'white', padding: 20, borderRadius: 10, marginBottom: 20, elevation: 2 },
+  inputGroup: { marginBottom: 15 },
+  label: { fontSize: 14, fontWeight: 'bold', marginBottom: 5, color: '#333' },
+  input: { backgroundColor: 'white', borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 10 },
+  button: { padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
+  buttonGreen: { backgroundColor: '#4CAF50' },
+  buttonBlue: { backgroundColor: '#2196F3' },
+  buttonCancel: { backgroundColor: '#FF5252', marginTop: 20 },
+  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 });
