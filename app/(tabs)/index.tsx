@@ -1,98 +1,143 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, Modal, TouchableOpacity } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import * as Location from 'expo-location';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function TabOneScreen() {
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  const [markers, setMarkers] = useState([
+    { id: '1', lat: 14.6760, lng: 121.0437, title: "Elevator", type: "working_elevator" },
+    { id: '2', lat: 14.6507, lng: 121.0315, title: "Broken Ramp", type: "broken_ramp" }
+  ]);
 
-export default function HomeScreen() {
+  const [draftLocation, setDraftLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [isModalVisible, setModalVisible] = useState(false);
+
+  const [region, setRegion] = useState({
+    latitude: 14.6760, 
+    longitude: 121.0437,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  });
+
+useEffect(() => {
+    (async () => {
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Permission to access location was denied');
+          return;
+        }
+
+        // We wrap this in a try/catch so the app doesn't crash if GPS is off
+        let userLocation = await Location.getCurrentPositionAsync({});
+        setLocation(userLocation);
+      } catch (error) {
+        // If it fails (e.g., location services are disabled), we catch the error here
+        console.log("Could not fetch location:", error);
+        setErrorMsg("Location unavailable. Using default map center.");
+      }
+    })();
+  }, []);
+
+  const handleMapLongPress = (event: any) => {
+    setDraftLocation(event.nativeEvent.coordinate);
+    setModalVisible(true);
+  };
+
+  const addMarker = (type: string, title: string) => {
+    if (draftLocation) {
+      const newMarker = {
+        id: Math.random().toString(),
+        lat: draftLocation.latitude,
+        lng: draftLocation.longitude,
+        title: title,
+        type: type
+      };
+      setMarkers([...markers, newMarker]);
+    }
+    setModalVisible(false);
+    setDraftLocation(null);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      <MapView 
+        style={styles.map}
+        initialRegion={region}
+        showsUserLocation={true}
+        onLongPress={handleMapLongPress}
+      >
+        {markers.map((marker) => (
+          <Marker
+            key={marker.id}
+            coordinate={{ latitude: marker.lat, longitude: marker.lng }}
+            title={marker.title}
+            pinColor={marker.type.includes('broken') ? 'red' : 'green'}
+          />
+        ))}
+      </MapView>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isModalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalView}>
+          <Text style={styles.modalTitle}>What are you reporting?</Text>
+          
+          <TouchableOpacity style={[styles.button, styles.buttonGreen]} onPress={() => addMarker('working_elevator', 'Working Elevator')}>
+            <Text style={styles.buttonText}>Working Elevator</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={[styles.button, styles.buttonGreen]} onPress={() => addMarker('working_ramp', 'Accessible Ramp')}>
+            <Text style={styles.buttonText}>Accessible Ramp</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.button, styles.buttonRed]} onPress={() => addMarker('broken_facility', 'Broken Facility')}>
+            <Text style={styles.buttonText}>Broken Facility</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.button, styles.buttonCancel]} onPress={() => setModalVisible(false)}>
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {errorMsg && (
+        <View style={styles.overlay}>
+          <Text style={styles.errorText}>{errorMsg}</Text>
+        </View>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: { flex: 1 },
+  map: { width: '100%', height: '100%' },
+  overlay: { position: 'absolute', bottom: 40, backgroundColor: 'white', padding: 10, borderRadius: 8, alignSelf: 'center' },
+  errorText: { color: 'red' },
+  modalView: {
+    margin: 20,
+    marginTop: 'auto',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 35,
     alignItems: 'center',
-    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  modalTitle: { marginBottom: 15, textAlign: 'center', fontSize: 18, fontWeight: 'bold' },
+  button: { borderRadius: 10, padding: 10, elevation: 2, marginBottom: 10, width: '100%', alignItems: 'center' },
+  buttonGreen: { backgroundColor: '#4CAF50' },
+  buttonRed: { backgroundColor: '#F44336' },
+  buttonCancel: { backgroundColor: '#9E9E9E', marginTop: 10 },
+  buttonText: { color: 'white', fontWeight: 'bold' },
 });
