@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
+
+// --- BRAND COLORS EXTRACTED FROM PPT ---
+const BRAND = {
+  navy: '#0C3559',      
+  lightBlue: '#71A8D7', 
+  green: '#2CA959',     
+  white: '#FFFFFF',
+  danger: '#E74C3C',    
+  gray: '#95A5A6',
+  darkText: '#2C3E50',
+};
 
 export default function ProfileScreen() {
   const [email, setEmail] = useState('');
@@ -61,84 +73,188 @@ export default function ProfileScreen() {
   // --- UI FOR LOGGED IN USERS ---
   if (session && session.user) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.header}>Welcome to PWMap</Text>
-        <Text style={styles.subtext}>Logged in as: {session.user.email}</Text>
+      <LinearGradient 
+        colors={['#EBF5F3', '#C6E3D8']} // Soft mint to slightly deeper teal gradient
+        style={styles.gradientBackground}
+      >
+        <View style={styles.container}>
+          <View style={styles.headerContainer}>
+            <Image 
+              source={require('../../assets/images/pwd-logo.png')} // <-- UPDATE TO YOUR LOGO IMAGE PATH
+              style={styles.logo} 
+              resizeMode="contain" 
+            />
+            <Text style={styles.subtext}>Logged in as: {session.user.email}</Text>
+          </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Link your Quezon City ID (QCID)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter QCID Number"
-            value={qcid}
-            onChangeText={setQcid}
-          />
-          <TouchableOpacity style={[styles.button, styles.buttonBlue]} onPress={updateQCID} disabled={loading}>
-            <Text style={styles.buttonText}>{loading ? "Saving..." : "Verify QCID"}</Text>
+          <View style={styles.card}>
+            <Text style={styles.label}>Link your Quezon City ID (QCID)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter QCID Number"
+              placeholderTextColor={BRAND.gray}
+              value={qcid}
+              onChangeText={setQcid}
+            />
+            <TouchableOpacity style={[styles.button, styles.buttonGreen]} onPress={updateQCID} disabled={loading} activeOpacity={0.8}>
+              <Text style={styles.buttonText}>{loading ? "Saving..." : "Verify QCID"}</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity 
+            style={[styles.button, styles.buttonDanger]} 
+            onPress={() => supabase.auth.signOut()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>Sign Out</Text>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity 
-          style={[styles.button, styles.buttonCancel]} 
-          onPress={() => supabase.auth.signOut()}
-        >
-          <Text style={styles.buttonText}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
+      </LinearGradient>
     );
   }
 
   // --- UI FOR GUESTS (LOGIN / SIGNUP) ---
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>Join PWMap</Text>
-      <Text style={styles.subtext}>Sign in to verify facilities and build your trust score.</Text>
+    <LinearGradient 
+      colors={['#EBF5F3', '#C6E3D8']} // Soft mint to slightly deeper teal gradient
+      style={styles.gradientBackground}
+    >
+      <KeyboardAvoidingView 
+        style={styles.container} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.headerContainer}>
+          <Image 
+            source={require('../../assets/images/pwd-logo.png')} 
+            style={styles.logo} 
+            resizeMode="contain" 
+          />
+          <Text style={styles.subtext}>Sign in to verify facilities and build your trust score.</Text>
+        </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          onChangeText={setEmail}
-          value={email}
-          placeholder="email@address.com"
-          autoCapitalize="none"
-        />
-      </View>
+        <View style={styles.formContainer}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Email Address</Text>
+            <TextInput
+              style={styles.input}
+              onChangeText={setEmail}
+              value={email}
+              placeholder="email@address.com"
+              placeholderTextColor={BRAND.gray}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
 
-      <View style={styles.inputGroup}>
-        <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          onChangeText={setPassword}
-          value={password}
-          secureTextEntry={true}
-          placeholder="Password"
-          autoCapitalize="none"
-        />
-      </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              onChangeText={setPassword}
+              value={password}
+              secureTextEntry={true}
+              placeholder="••••••••"
+              placeholderTextColor={BRAND.gray}
+              autoCapitalize="none"
+            />
+          </View>
 
-      <TouchableOpacity style={[styles.button, styles.buttonGreen]} onPress={signInWithEmail} disabled={loading}>
-        <Text style={styles.buttonText}>Sign In</Text>
-      </TouchableOpacity>
+          <TouchableOpacity style={[styles.button, styles.buttonNavy]} onPress={signInWithEmail} disabled={loading} activeOpacity={0.8}>
+            <Text style={styles.buttonText}>Sign In</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, styles.buttonBlue]} onPress={signUpWithEmail} disabled={loading}>
-        <Text style={styles.buttonText}>Create Account</Text>
-      </TouchableOpacity>
-    </View>
+          <TouchableOpacity style={[styles.button, styles.buttonLightBlue]} onPress={signUpWithEmail} disabled={loading} activeOpacity={0.8}>
+            <Text style={styles.buttonText}>Create Account</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
+// --- NEW BRAND STYLES ---
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, justifyContent: 'center', backgroundColor: '#f5f5f5' },
-  header: { fontSize: 28, fontWeight: 'bold', marginBottom: 5, textAlign: 'center' },
-  subtext: { fontSize: 14, color: '#666', marginBottom: 30, textAlign: 'center' },
-  card: { backgroundColor: 'white', padding: 20, borderRadius: 10, marginBottom: 20, elevation: 2 },
-  inputGroup: { marginBottom: 15 },
-  label: { fontSize: 14, fontWeight: 'bold', marginBottom: 5, color: '#333' },
-  input: { backgroundColor: 'white', borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, marginBottom: 10 },
-  button: { padding: 15, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
-  buttonGreen: { backgroundColor: '#4CAF50' },
-  buttonBlue: { backgroundColor: '#2196F3' },
-  buttonCancel: { backgroundColor: '#FF5252', marginTop: 20 },
-  buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+  gradientBackground: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  container: { 
+    flex: 1, 
+    padding: 25, 
+    justifyContent: 'center', 
+  },
+  headerContainer: {
+    marginBottom: 40,
+    alignItems: 'center',
+  },
+  logo: {
+    width: 250,      
+    height: 120,     
+    marginBottom: 10,
+  },
+  subtext: { 
+    fontSize: 15, 
+    color: BRAND.navy,
+    marginTop: 8, 
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 22,
+  },
+  formContainer: {
+    width: '100%',
+  },
+  card: { 
+    backgroundColor: BRAND.white, 
+    padding: 25, 
+    borderRadius: 20, 
+    marginBottom: 30, 
+    shadowColor: BRAND.navy, 
+    shadowOffset: { width: 0, height: 8 }, 
+    shadowOpacity: 0.1, 
+    shadowRadius: 15, 
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: '#E2EBE8'
+  },
+  inputGroup: { 
+    marginBottom: 20 
+  },
+  label: { 
+    fontSize: 14, 
+    fontWeight: '800', 
+    marginBottom: 8, 
+    color: BRAND.navy,
+    marginLeft: 4, 
+  },
+  input: { 
+    backgroundColor: BRAND.white, 
+    borderWidth: 1, 
+    borderColor: '#D1E3DD', 
+    borderRadius: 14, 
+    padding: 16, 
+    fontSize: 16, 
+    color: BRAND.darkText,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  button: { 
+    padding: 16, 
+    borderRadius: 14, 
+    alignItems: 'center', 
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  buttonNavy: { backgroundColor: BRAND.navy },
+  buttonLightBlue: { backgroundColor: BRAND.lightBlue },
+  buttonGreen: { backgroundColor: BRAND.green },
+  buttonDanger: { backgroundColor: BRAND.danger },
+  buttonText: { color: BRAND.white, fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
 });
