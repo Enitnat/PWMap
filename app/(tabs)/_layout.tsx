@@ -3,7 +3,7 @@ import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// --- BRAND COLORS EXTRACTED FROM PPT ---
+
 const BRAND = {
   navy: '#0c3559',      
   lightBlue: '#71A8D7', 

@@ -240,14 +240,45 @@ export default function TabOneScreen() {
         showsUserLocation={true}
         onLongPress={handleMapLongPress}
       >
-        {markers.map((marker) => (
-          <Marker
-            key={marker.id}
-            coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
-            pinColor={marker.type === 'ramp' ? BRAND.lightBlue : BRAND.green}
-            onPress={() => setSelectedFacility(marker)}
-          />
-        ))}
+{markers.map((marker) => {
+          const isRamp = marker.type === 'ramp';
+          // Define dynamic colors based on type
+          const markerThemeColor = isRamp ? '#007BFF' : BRAND.green; // #007BFF matches the blue ramp icon
+
+return (
+            <Marker
+              key={marker.id}
+              coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
+              onPress={() => setSelectedFacility(marker)}
+              // Adjusted anchor to match the new 80x80 oversized box
+              anchor={{ x: 0.5, y: 0.9 }} 
+            >
+              {/* THE ULTIMATE FIX: An oversized 80x80 invisible box */}
+              <View style={styles.hugeBoundingBox}>
+                
+                <View style={[styles.iconBubble, { borderColor: markerThemeColor }]}>
+                  <Image 
+                    source={
+                      isRamp 
+                        ? require('../../assets/images/RmpPWD.png') 
+                        : require('../../assets/images/ElevatorPW.png') 
+                    }
+                    style={styles.markerImage}
+                    resizeMode="contain" 
+                  />
+                </View>
+                
+                <MaterialIcons 
+                  name="arrow-drop-down" 
+                  size={30} 
+                  color={markerThemeColor} 
+                  style={styles.markerPointer} 
+                />
+
+              </View>
+            </Marker>
+          );
+        })}
       </MapView>
 
       <TouchableOpacity 
@@ -347,6 +378,43 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
   
+// --- NEW MAP MARKER STYLES ---
+  hugeBoundingBox: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0)', 
+  },
+  iconBubble: {
+    width: 30,
+    height: 30,
+    backgroundColor: BRAND.white,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2.5,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    zIndex: 2, 
+  },
+  markerImage: {
+    width: 25, 
+    height: 25,
+  },
+  markerPointer: {
+    marginTop: -16, 
+    zIndex: 1,      
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  // -----------------------------
+
   // Floating Action Button
   reportButton: {
     position: 'absolute', bottom: 110, right: 25,
@@ -355,13 +423,13 @@ const styles = StyleSheet.create({
     borderRadius: 30, flexDirection: 'row', alignItems: 'center',
     shadowColor: BRAND.navy, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 5, elevation: 8,
-    borderWidth: 2, borderColor: BRAND.green // Accent border from your logo
+    borderWidth: 2, borderColor: BRAND.green 
   },
   reportButtonText: { color: BRAND.white, fontWeight: '800', marginLeft: 8, fontSize: 16 },
   
   // Modals
   modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(12, 53, 89, 0.4)', // Tinted navy background
+    flex: 1, backgroundColor: 'rgba(12, 53, 89, 0.4)', 
     justifyContent: 'center', alignItems: 'center'
   },
   modalView: { 
