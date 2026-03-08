@@ -1,4 +1,5 @@
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
