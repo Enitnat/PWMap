@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons'; // <-- Added for the eye icon
 import { supabase } from '../../lib/supabase';
 
 // --- BRAND COLORS EXTRACTED FROM PPT ---
 const BRAND = {
   navy: '#0C3559',      
   lightBlue: '#71A8D7', 
-  green: '#2CA959',     
+  green: '#2CA959',      
   white: '#FFFFFF',
   danger: '#E74C3C',    
   gray: '#95A5A6',
@@ -17,9 +18,16 @@ const BRAND = {
 export default function ProfileScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState(''); 
   const [qcid, setQcid] = useState('');
+  
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<any>(null);
+  
+  // --- NEW UI STATES ---
+  const [isLoginMode, setIsLoginMode] = useState(true); 
+  const [showPassword, setShowPassword] = useState(false); 
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false); 
 
   // Check if a user is already logged in when the tab opens
   useEffect(() => {
@@ -33,6 +41,11 @@ export default function ProfileScreen() {
   }, []);
 
   async function signInWithEmail() {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password.");
+      return;
+    }
+
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) Alert.alert("Login Failed", error.message);
@@ -40,6 +53,16 @@ export default function ProfileScreen() {
   }
 
   async function signUpWithEmail() {
+    // --- ADDED VALIDATION ---
+    if (!email || !password || !confirmPassword) {
+      Alert.alert("Error", "Please fill in all fields.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
     const { data: { session }, error } = await supabase.auth.signUp({ email, password });
     
@@ -47,6 +70,7 @@ export default function ProfileScreen() {
       Alert.alert("Sign Up Failed", error.message);
     } else if (!session) {
       Alert.alert("Check your email", "Please check your inbox for verification!");
+      setIsLoginMode(true); // Switch back to login after successful signup
     } else {
       Alert.alert("Success!", "Account created.");
     }
@@ -74,13 +98,13 @@ export default function ProfileScreen() {
   if (session && session.user) {
     return (
       <LinearGradient 
-        colors={['#EBF5F3', '#C6E3D8']} // Soft mint to slightly deeper teal gradient
+        colors={['#EBF5F3', '#C6E3D8']} 
         style={styles.gradientBackground}
       >
         <View style={styles.container}>
           <View style={styles.headerContainer}>
             <Image 
-              source={require('../../assets/images/pwd-logo.png')} // <-- UPDATE TO YOUR LOGO IMAGE PATH
+              source={require('../../assets/images/pwd-logo.png')} 
               style={styles.logo} 
               resizeMode="contain" 
             />
@@ -116,7 +140,7 @@ export default function ProfileScreen() {
   // --- UI FOR GUESTS (LOGIN / SIGNUP) ---
   return (
     <LinearGradient 
-      colors={['#EBF5F3', '#C6E3D8']} // Soft mint to slightly deeper teal gradient
+      colors={['#EBF5F3', '#C6E3D8']} 
       style={styles.gradientBackground}
     >
       <KeyboardAvoidingView 
@@ -129,7 +153,11 @@ export default function ProfileScreen() {
             style={styles.logo} 
             resizeMode="contain" 
           />
-          <Text style={styles.subtext}>Sign in to verify facilities and build your trust score.</Text>
+          <Text style={styles.subtext}>
+            {isLoginMode 
+              ? "Sign in to verify facilities and build your trust score." 
+              : "Create an account to verify facilities and build your trust score."}
+          </Text>
         </View>
 
         <View style={styles.formContainer}>
@@ -148,23 +176,69 @@ export default function ProfileScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              onChangeText={setPassword}
-              value={password}
-              secureTextEntry={true}
-              placeholder="••••••••"
-              placeholderTextColor={BRAND.gray}
-              autoCapitalize="none"
-            />
+            <View style={styles.passwordWrapper}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                onChangeText={setPassword}
+                value={password}
+                secureTextEntry={!showPassword}
+                placeholder="••••••••"
+                placeholderTextColor={BRAND.gray}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity 
+                style={styles.eyeIconContainer} 
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons name={showPassword ? "eye-off" : "eye"} size={22} color={BRAND.gray} />
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <TouchableOpacity style={[styles.button, styles.buttonNavy]} onPress={signInWithEmail} disabled={loading} activeOpacity={0.8}>
-            <Text style={styles.buttonText}>Sign In</Text>
-          </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.button, styles.buttonLightBlue]} onPress={signUpWithEmail} disabled={loading} activeOpacity={0.8}>
-            <Text style={styles.buttonText}>Create Account</Text>
+          {!isLoginMode && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Confirm Password</Text>
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  style={[styles.input, styles.passwordInput]}
+                  onChangeText={setConfirmPassword}
+                  value={confirmPassword}
+                  secureTextEntry={!showConfirmPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor={BRAND.gray}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity 
+                  style={styles.eyeIconContainer} 
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={22} color={BRAND.gray} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Primary Action Button */}
+          {isLoginMode ? (
+            <TouchableOpacity style={[styles.button, styles.buttonNavy]} onPress={signInWithEmail} disabled={loading} activeOpacity={0.8}>
+              <Text style={styles.buttonText}>{loading ? "Signing in..." : "Sign In"}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[styles.button, styles.buttonLightBlue]} onPress={signUpWithEmail} disabled={loading} activeOpacity={0.8}>
+              <Text style={styles.buttonText}>{loading ? "Creating..." : "Create Account"}</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Toggle View Mode Button */}
+          <TouchableOpacity 
+            style={styles.toggleModeButton} 
+            onPress={() => setIsLoginMode(!isLoginMode)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.toggleModeText}>
+              {isLoginMode ? "Don't have an account yet? Sign up" : "Already have an account? Sign in"}
+            </Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -241,6 +315,18 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 1,
   },
+  passwordWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  passwordInput: {
+    paddingRight: 50, 
+  },
+  eyeIconContainer: {
+    position: 'absolute',
+    right: 15,
+    padding: 5,
+  },
   button: { 
     padding: 16, 
     borderRadius: 14, 
@@ -257,4 +343,14 @@ const styles = StyleSheet.create({
   buttonGreen: { backgroundColor: BRAND.green },
   buttonDanger: { backgroundColor: BRAND.danger },
   buttonText: { color: BRAND.white, fontWeight: '800', fontSize: 16, letterSpacing: 0.5 },
+  toggleModeButton: {
+    marginTop: 15,
+    alignItems: 'center',
+    padding: 10,
+  },
+  toggleModeText: {
+    color: BRAND.navy,
+    fontSize: 14,
+    fontWeight: '600',
+  }
 });

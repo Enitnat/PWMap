@@ -4,18 +4,18 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native'; 
 import MapView, { Marker } from 'react-native-maps';
 import { supabase } from '../../lib/supabase';
 
 // --- BRAND COLORS EXTRACTED FROM YOUR PRESENTATION ---
 const BRAND = {
-  navy: '#0C3559',      // Dark blue from the wheelchair icon and "PWD" text
-  lightBlue: '#71A8D7', // Light blue from the "MAP" text
-  green: '#2CA959',     // Green from the elevator arrow and borders
-  mintBg: '#F0F7F4',    // Subtle geometric mint background tint
+  navy: '#0C3559',      
+  lightBlue: '#71A8D7', 
+  green: '#2CA959',     
+  mintBg: '#F0F7F4',    
   white: '#FFFFFF',
-  danger: '#E74C3C',    // Red for deletion
+  danger: '#E74C3C',   
   gray: '#95A5A6',
 };
 
@@ -33,6 +33,7 @@ export default function TabOneScreen() {
   
   // Uploading States
   const [image, setImage] = useState<string | null>(null);
+  const [description, setDescription] = useState<string>(''); // <-- ADDED: Description state
   const [isUploading, setIsUploading] = useState(false);
 
   // Map State
@@ -133,6 +134,20 @@ export default function TabOneScreen() {
   };
 
   // --- DATABASE ACTIONS ---
+  
+  // <-- ADDED: Confirmation Alert Function
+  const confirmSaveMarker = (dbType: string) => {
+    const facilityName = dbType === 'ramp' ? 'Ramp' : 'Elevator';
+    Alert.alert(
+      "Confirm Report",
+      `Are you sure you want to save this location as a ${facilityName}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Save", style: "default", onPress: () => saveMarkerToDB(dbType) }
+      ]
+    );
+  };
+
   const saveMarkerToDB = async (dbType: string) => {
     if (!draftLocation) return;
     
@@ -178,6 +193,7 @@ export default function TabOneScreen() {
       latitude: draftLocation.latitude, 
       longitude: draftLocation.longitude,
       image_url: publicImageUrl,
+      description: description.trim() === '' ? null : description.trim(), // <-- ADDED: Saves description if not empty
       user_id: user.id 
     }]);
 
@@ -229,6 +245,7 @@ export default function TabOneScreen() {
     setModalVisible(false);
     setDraftLocation(null);
     setImage(null); 
+    setDescription(''); 
   };
 
   // --- UI RENDER ---
@@ -240,22 +257,18 @@ export default function TabOneScreen() {
         showsUserLocation={true}
         onLongPress={handleMapLongPress}
       >
-{markers.map((marker) => {
+        {markers.map((marker) => {
           const isRamp = marker.type === 'ramp';
-          // Define dynamic colors based on type
-          const markerThemeColor = isRamp ? '#007BFF' : BRAND.green; // #007BFF matches the blue ramp icon
+          const markerThemeColor = isRamp ? '#007BFF' : BRAND.green; 
 
-return (
+          return (
             <Marker
               key={marker.id}
               coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
               onPress={() => setSelectedFacility(marker)}
-              // Adjusted anchor to match the new 80x80 oversized box
               anchor={{ x: 0.5, y: 0.9 }} 
             >
-              {/* THE ULTIMATE FIX: An oversized 80x80 invisible box */}
               <View style={styles.hugeBoundingBox}>
-                
                 <View style={[styles.iconBubble, { borderColor: markerThemeColor }]}>
                   <Image 
                     source={
@@ -267,14 +280,12 @@ return (
                     resizeMode="contain" 
                   />
                 </View>
-                
                 <MaterialIcons 
                   name="arrow-drop-down" 
                   size={30} 
                   color={markerThemeColor} 
                   style={styles.markerPointer} 
                 />
-
               </View>
             </Marker>
           );
@@ -306,6 +317,17 @@ return (
               <Text style={styles.buttonText}>{image ? "Change Photo" : "Attach Photo"}</Text>
             </TouchableOpacity>
 
+            <TextInput
+              style={styles.descriptionInput}
+              placeholder="Optional description (e.g., 'Behind the main stairs')"
+              placeholderTextColor={BRAND.gray}
+              value={description}
+              onChangeText={setDescription}
+              multiline={true}
+              numberOfLines={3}
+              maxLength={150}
+            />
+
             <View style={styles.divider} />
 
             {isUploading ? (
@@ -315,12 +337,13 @@ return (
               </View>
             ) : (
               <>
-                <TouchableOpacity style={[styles.button, styles.buttonElevator]} activeOpacity={0.7} onPress={() => saveMarkerToDB('elevator')}>
+                
+                <TouchableOpacity style={[styles.button, styles.buttonElevator]} activeOpacity={0.7} onPress={() => confirmSaveMarker('elevator')}>
                   <MaterialIcons name="elevator" size={20} color={BRAND.white} style={{marginRight: 8}} />
                   <Text style={styles.buttonText}>Save as Elevator</Text>
                 </TouchableOpacity>
                 
-                <TouchableOpacity style={[styles.button, styles.buttonRamp]} activeOpacity={0.7} onPress={() => saveMarkerToDB('ramp')}>
+                <TouchableOpacity style={[styles.button, styles.buttonRamp]} activeOpacity={0.7} onPress={() => confirmSaveMarker('ramp')}>
                   <MaterialIcons name="accessible" size={20} color={BRAND.white} style={{marginRight: 8}} />
                   <Text style={styles.buttonText}>Save as Ramp</Text>
                 </TouchableOpacity>
@@ -351,6 +374,14 @@ return (
               </View>
             )}
 
+
+            {selectedFacility?.description ? (
+              <View style={styles.descriptionBox}>
+                <Text style={styles.descriptionLabel}>Notes:</Text>
+                <Text style={styles.descriptionText}>{selectedFacility.description}</Text>
+              </View>
+            ) : null}
+
             {currentUserId === selectedFacility?.user_id && (
               <TouchableOpacity style={[styles.button, styles.buttonDelete]} activeOpacity={0.7} onPress={deleteMarker}>
                 <MaterialIcons name="delete-outline" size={20} color={BRAND.white} style={{marginRight: 8}} />
@@ -378,7 +409,6 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
   
-// --- NEW MAP MARKER STYLES ---
   hugeBoundingBox: {
     width: 40,
     height: 40,
@@ -413,9 +443,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  // -----------------------------
-
-  // Floating Action Button
+  
   reportButton: {
     position: 'absolute', bottom: 110, right: 25,
     backgroundColor: BRAND.navy, 
@@ -427,7 +455,6 @@ const styles = StyleSheet.create({
   },
   reportButtonText: { color: BRAND.white, fontWeight: '800', marginLeft: 8, fontSize: 16 },
   
-  // Modals
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(12, 53, 89, 0.4)', 
     justifyContent: 'center', alignItems: 'center'
@@ -443,9 +470,44 @@ const styles = StyleSheet.create({
     marginBottom: 5, textAlign: 'center', fontSize: 22, 
     fontWeight: '900', color: BRAND.navy, letterSpacing: 1 
   },
-  coordText: { fontSize: 12, color: BRAND.gray, marginBottom: 20, fontWeight: '500' },
+  coordText: { fontSize: 12, color: BRAND.gray, marginBottom: 10, fontWeight: '500' },
   
-  // Buttons
+  // <-- ADDED: Input styles
+  descriptionInput: {
+    width: '100%',
+    backgroundColor: BRAND.mintBg,
+    borderColor: '#D1E3DD',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    minHeight: 60,
+    textAlignVertical: 'top', 
+    color: BRAND.navy,
+  },
+  
+  // <-- ADDED: View styles for description in Modal 2
+  descriptionBox: {
+    width: '100%',
+    backgroundColor: BRAND.mintBg,
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#D1E3DD',
+  },
+  descriptionLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: BRAND.gray,
+    marginBottom: 4,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: BRAND.navy,
+    lineHeight: 20,
+  },
+
   button: { 
     borderRadius: 14, padding: 15, 
     marginBottom: 12, width: '100%', 
@@ -461,7 +523,6 @@ const styles = StyleSheet.create({
   buttonDelete: { backgroundColor: BRAND.danger },
   buttonCancel: { backgroundColor: BRAND.mintBg, elevation: 0, borderWidth: 1, borderColor: '#D1E3DD' },
   
-  // Images
   previewImage: { width: '100%', height: 180, borderRadius: 16, marginBottom: 20 },
   noPhotoContainer: { 
     width: '100%', height: 120, backgroundColor: BRAND.mintBg, 
@@ -471,7 +532,6 @@ const styles = StyleSheet.create({
   
   divider: { height: 2, backgroundColor: BRAND.mintBg, width: '100%', marginVertical: 15, borderRadius: 1 },
   
-  // Errors
   errorOverlay: { 
     position: 'absolute', top: 50, backgroundColor: BRAND.danger, 
     padding: 12, borderRadius: 10, alignSelf: 'center',

@@ -17,8 +17,8 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: BRAND.white,      // Active text/icon is crisp white
-        tabBarInactiveTintColor: BRAND.lightBlue, // Inactive tabs are light blue
+        tabBarActiveTintColor: BRAND.white,      
+        tabBarInactiveTintColor: BRAND.lightBlue, 
         headerShown: false,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabBarLabel,
@@ -63,17 +63,17 @@ export default function TabLayout() {
 // --- NEW STRIKING STYLES ---
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: BRAND.navy, // Changed from White to Navy!
+    backgroundColor: BRAND.navy, 
     borderTopWidth: 0, 
     elevation: 25, 
-    shadowColor: '#000', // Deep shadow to separate it from the map
+    shadowColor: '#000', 
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.35,
     shadowRadius: 20,
     height: Platform.OS === 'ios' ? 88 : 70, 
     paddingBottom: Platform.OS === 'ios' ? 28 : 10, 
     paddingTop: 10,
-    borderTopLeftRadius: 30, // Slightly rounder for a sleeker look
+    borderTopLeftRadius: 30, 
     borderTopRightRadius: 30,
     position: 'absolute', 
     bottom: 0, 
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   activeWrapper: {
-    backgroundColor: BRAND.green, // Bright green pill for the selected tab!
+    backgroundColor: BRAND.green,
     shadowColor: BRAND.green,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
