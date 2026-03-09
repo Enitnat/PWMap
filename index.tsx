@@ -1,5 +1,5 @@
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
-import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
+import MapView, { Marker, Polyline, Region, UrlTile } from 'react-native-maps';;
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -7,7 +7,6 @@ import * as Location from 'expo-location';
 import * as Speech from 'expo-speech'; // <-- ADDED: Speech Library
 import React, { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native'; 
-import MapView, { Marker, Region } from 'react-native-maps';
 import { supabase } from '../../lib/supabase';
 
 // --- CONSTANTS ---
@@ -28,7 +27,6 @@ const INITIAL_REGION: Region = {
   longitudeDelta: 0.0421,
 };
 
-// --- HELPER: DISTANCE MATH (HAVERSINE FORMULA) ---
 const getDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371e3; // Earth's radius in meters
   const p1 = (lat1 * Math.PI) / 180;
@@ -49,8 +47,6 @@ export default function TabOneScreen() {
   const mapRef = useRef<MapView>(null);
   const announcedMarkers = useRef<Set<number>>(new Set()); // <-- ADDED: Tracks announced facilities
 
-  // --- STATE MANAGEMENT ---
-  // Map & Location State
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [markers, setMarkers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -299,7 +295,6 @@ export default function TabOneScreen() {
   // --- RENDER ---
   return (
     <View style={styles.container}>
-      {/* 1. MAP */}
       <MapView 
         ref={mapRef}
         style={styles.map}
