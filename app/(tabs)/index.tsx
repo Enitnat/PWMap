@@ -10,6 +10,14 @@ import MapView, { Marker, Region, Geojson } from 'react-native-maps';
 import { supabase } from '../../lib/supabase';
 
 import lrt2Data from '../../assets/data/lrt2.json'; 
+import busStopsData from '../../assets/data/busstops.json';
+
+const lrt2TracksOnly = {
+  ...(lrt2Data as any),
+  features: (lrt2Data as any).features.filter(
+    (feature: any) => feature.geometry.type !== 'Point'
+  )
+};
 
 const BRAND = {
   navy: '#0C3559',      
@@ -37,13 +45,19 @@ const getEstimatedWaitTime = (intervalMinutes: number, offsetMinutes: number) =>
 
 const LRT2_Stations = [
   { id: 'lrt_ant', name: 'Antipolo Station', latitude: 14.6251, longitude: 121.1213, offsetMins: 0 },
+  { id: 'lrt_mar', name: 'Marikina-Pasig Station', latitude: 14.6200, longitude: 121.1000, offsetMins: 4 },
   { id: 'lrt_san', name: 'Santolan Station', latitude: 14.6220, longitude: 121.0860, offsetMins: 8 },
   { id: 'lrt_kat', name: 'Katipunan Station', latitude: 14.6315, longitude: 121.0733, offsetMins: 12 },
+  { id: 'lrt_ano', name: 'Anonas Station', latitude: 14.6280, longitude: 121.0645, offsetMins: 14 },
   { id: 'lrt_cub', name: 'Araneta Center-Cubao', latitude: 14.6225, longitude: 121.0536, offsetMins: 16 },
+  { id: 'lrt_bet', name: 'Betty Go-Belmonte', latitude: 14.6185, longitude: 121.0425, offsetMins: 18 },
+  { id: 'lrt_gil', name: 'Gilmore Station', latitude: 14.6135, longitude: 121.0340, offsetMins: 20 },
+  { id: 'lrt_jruiz', name: 'J. Ruiz Station', latitude: 14.6105, longitude: 121.0265, offsetMins: 22 },
+  { id: 'lrt_vmapa', name: 'V. Mapa Station', latitude: 14.6041, longitude: 121.0170, offsetMins: 25 },
+  { id: 'lrt_pur', name: 'Pureza Station', latitude: 14.6015, longitude: 121.0055, offsetMins: 28 },
   { id: 'lrt_leg', name: 'Legarda Station', latitude: 14.6010, longitude: 120.9925, offsetMins: 30 },
   { id: 'lrt_rec', name: 'Recto Station', latitude: 14.6036, longitude: 120.9838, offsetMins: 33 },
 ];
-
 const getDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371e3; 
   const p1 = (lat1 * Math.PI) / 180;
@@ -67,7 +81,7 @@ export default function TabOneScreen() {
   const [markers, setMarkers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
+  const [showTransit, setShowTransit] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   const [isModalVisible, setModalVisible] = useState(false);
@@ -284,27 +298,43 @@ export default function TabOneScreen() {
         initialRegion={INITIAL_REGION}
         showsUserLocation={true}
         onLongPress={handleMapLongPress}
-        // Removed mapType="none" to let Google Maps shine through
       >
-        {/* 1. THE CURVING LRT-2 TRACK (From your GeoJSON!) */}
-        <Geojson 
-          geojson={lrt2Data as any} 
-          strokeColor="#800080" 
-          strokeWidth={5} 
-        />
+       {/* --- TOGGLEABLE TRANSIT LAYER --- */}
+        {showTransit && (
+          <>
+            {/* 1. LRT-2 TRACKS */}
+            <Geojson geojson={lrt2TracksOnly} strokeColor="#800080" strokeWidth={5} />
+            
+            {/* 2. LRT-2 STATIONS */}
+            {LRT2_Stations.map((station) => (
+              <Marker
+                key={station.id}
+                coordinate={{ latitude: station.latitude, longitude: station.longitude }}
+                title={station.name}
+                description={`Next train arriving in: ${getEstimatedWaitTime(7, station.offsetMins)} mins`}
+                pinColor="#800080" 
+              />
+            ))}
 
-        {/* 2. THE STATION MARKERS (With Live ETAs) */}
-        {LRT2_Stations.map((station) => (
-          <Marker
-            key={station.id}
-            coordinate={{ latitude: station.latitude, longitude: station.longitude }}
-            title={station.name}
-            description={`Next train arriving in: ${getEstimatedWaitTime(7, station.offsetMins)} mins`}
-            pinColor="#800080" 
-          />
-        ))}
+            {/* 3. QCITY BUS STOPS */}
+            {busStopsData.features.map((feature: any, index: number) => {
+              const [longitude, latitude] = feature.geometry.coordinates;
+              const stopName = feature.properties?.name || `QCity Bus Stop ${index + 1}`;
+              const dynamicOffset = index * 5; 
+              
+              return (
+                <Marker
+                  key={`bus-${index}`}
+                  coordinate={{ latitude, longitude }}
+                  title={stopName}
+                  description={`Next bus arriving in: ${getEstimatedWaitTime(45, dynamicOffset)} mins`}
+                  pinColor={BRAND.navy}
+                />
+              );
+            })}
+          </> 
+        )}
 
-        {/* 3. YOUR EXISTING PWD MARKERS */}
         {markers.map((marker) => {
           const isRamp = marker.type === 'ramp';
           const markerThemeColor = isRamp ? '#007BFF' : BRAND.green; 
@@ -352,6 +382,17 @@ export default function TabOneScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      <TouchableOpacity 
+        style={[styles.reportButton, { bottom: 170, backgroundColor: showTransit ? BRAND.danger : BRAND.white }]} 
+        activeOpacity={0.8} 
+        onPress={() => setShowTransit(!showTransit)}
+      >
+        <MaterialIcons name="directions-transit" size={24} color={showTransit ? BRAND.white : BRAND.navy} />
+        <Text style={[styles.reportButtonText, { color: showTransit ? BRAND.white : BRAND.navy }]}>
+          {showTransit ? "Hide Transit" : "Show Transit"}
+        </Text>
+      </TouchableOpacity>
 
       <TouchableOpacity style={styles.reportButton} activeOpacity={0.8} onPress={handleReportAtCurrentLocation}>
         <MaterialIcons name="add-location-alt" size={24} color={BRAND.white} />
