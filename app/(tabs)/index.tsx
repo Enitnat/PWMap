@@ -5,12 +5,32 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech'; 
 import React, { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native'; 
-import MapView, { Marker, Region, Geojson } from 'react-native-maps';
+import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View, TextInput, ScrollView } from 'react-native'; 
+import MapView, { Marker, Region, Geojson, Polyline } from 'react-native-maps';
 import { supabase } from '../../lib/supabase';
 
 import lrt2Data from '../../assets/data/lrt2.json'; 
 import busStopsData from '../../assets/data/busstops.json';
+
+import route1Data from '../../assets/data/QCity_Route1.json'; 
+import route2Data from '../../assets/data/QCity_Route2.json'; 
+import route3Data from '../../assets/data/QCity_Route3.json'; 
+import route4Data from '../../assets/data/QCity_Route4.json'; 
+import route5Data from '../../assets/data/QCity_Route5.json'; 
+import route6Data from '../../assets/data/QCity_Route6.json'; 
+import route7Data from '../../assets/data/QCity_Route7.json'; 
+import route8Data from '../../assets/data/QCity_Route8.json'; 
+
+const BUS_ROUTES: Record<number, any> = {
+  1: { name: 'QC Hall - Cubao', data: route1Data, color: '#E63946' }, // Red
+  2: { name: 'QC Hall - Litex', data: route2Data, color: '#D81B60' }, // Pink
+  3: { name: 'Welcome - Aurora', data: route3Data, color: '#FFCA28' }, // Yellow
+  4: { name: 'QC Hall - Gen Luis', data: route4Data, color: '#8E44AD' }, // Purple
+  5: { name: 'QC Hall - Mindanao', data: route5Data, color: '#F39C12' }, // Orange
+  6: { name: 'QC Hall - Gilmore', data: route6Data, color: '#27AE60' }, // Green
+  7: { name: 'QC Hall - Ortigas', data: route7Data, color: '#2980B9' }, // Blue
+  8: { name: 'QC Hall - Muñoz', data: route8Data, color: '#00BCD4' }, // Cyan
+};
 
 const lrt2TracksOnly = {
   ...(lrt2Data as any),
@@ -43,6 +63,28 @@ const getEstimatedWaitTime = (intervalMinutes: number, offsetMinutes: number) =>
   return intervalMinutes - (cyclePosition - offsetMinutes);
 };
 
+const getCurrentBusInterval = () => {
+  const now = new Date();
+  const day = now.getDay();
+  const hour = now.getHours();
+  const mins = now.getMinutes();
+  const timeFloat = hour + (mins / 60);
+
+  if (day === 0) { 
+    if (timeFloat >= 8 && timeFloat <= 20) return 60;
+    return null;
+  } else if (day === 6) { 
+    if (timeFloat >= 6.5 && timeFloat <= 20.5) return 30;
+    return null; 
+  } else { 
+    if (timeFloat >= 6 && timeFloat < 11.5) return 10;
+    if (timeFloat >= 11.5 && timeFloat < 16) return 30;
+    if (timeFloat >= 16 && timeFloat < 20) return 10;
+    if (timeFloat >= 20 && timeFloat <= 21) return 30;
+    return null; 
+  }
+};
+
 const LRT2_Stations = [
   { id: 'lrt_ant', name: 'Antipolo Station', latitude: 14.6251, longitude: 121.1213, offsetMins: 0 },
   { id: 'lrt_mar', name: 'Marikina-Pasig Station', latitude: 14.6200, longitude: 121.1000, offsetMins: 4 },
@@ -58,6 +100,16 @@ const LRT2_Stations = [
   { id: 'lrt_leg', name: 'Legarda Station', latitude: 14.6010, longitude: 120.9925, offsetMins: 30 },
   { id: 'lrt_rec', name: 'Recto Station', latitude: 14.6036, longitude: 120.9838, offsetMins: 33 },
 ];
+
+const QCity_Route1 = [
+  { id: 'qc1_1', name: 'QC Hall Gate 3 Kalayaan Ave.', latitude: 14.6465, longitude: 121.0498, offsetMins: 0 },
+  { id: 'qc1_2', name: 'Kalayaan Ave. Cor. Masigla St.', latitude: 14.6410, longitude: 121.0515, offsetMins: 4 },
+  { id: 'qc1_3', name: 'Kalayaan Ave. Cor. Kamias Rd.', latitude: 14.6360, longitude: 121.0530, offsetMins: 8 },
+  { id: 'qc1_4', name: 'Barangay Silangan Hall', latitude: 14.6285, longitude: 121.0550, offsetMins: 14 },
+  { id: 'qc1_5', name: '15th Ave. Cor. Aurora Blvd.', latitude: 14.6215, longitude: 121.0610, offsetMins: 20 },
+  { id: 'qc1_6', name: 'Cubao (Araneta City)', latitude: 14.6212, longitude: 121.0565, offsetMins: 25 },
+];
+
 const getDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
   const R = 6371e3; 
   const p1 = (lat1 * Math.PI) / 180;
@@ -82,6 +134,7 @@ export default function TabOneScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showTransit, setShowTransit] = useState(false);
+  const [activeRouteId, setActiveRouteId] = useState<number | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
   const [isModalVisible, setModalVisible] = useState(false);
@@ -299,13 +352,9 @@ export default function TabOneScreen() {
         showsUserLocation={true}
         onLongPress={handleMapLongPress}
       >
-       {/* --- TOGGLEABLE TRANSIT LAYER --- */}
         {showTransit && (
           <>
-            {/* 1. LRT-2 TRACKS */}
             <Geojson geojson={lrt2TracksOnly} strokeColor="#800080" strokeWidth={5} />
-            
-            {/* 2. LRT-2 STATIONS */}
             {LRT2_Stations.map((station) => (
               <Marker
                 key={station.id}
@@ -316,23 +365,33 @@ export default function TabOneScreen() {
               />
             ))}
 
-            {/* 3. QCITY BUS STOPS */}
-            {busStopsData.features.map((feature: any, index: number) => {
-              const [longitude, latitude] = feature.geometry.coordinates;
-              const stopName = feature.properties?.name || `QCity Bus Stop ${index + 1}`;
-              const dynamicOffset = index * 5; 
-              
-              return (
-                <Marker
-                  key={`bus-${index}`}
-                  coordinate={{ latitude, longitude }}
-                  title={stopName}
-                  description={`Next bus arriving in: ${getEstimatedWaitTime(45, dynamicOffset)} mins`}
-                  pinColor={BRAND.navy}
+            {activeRouteId && (
+              <>
+                <Geojson 
+                  geojson={BUS_ROUTES[activeRouteId].data} 
+                  strokeColor={BUS_ROUTES[activeRouteId].color} 
+                  strokeWidth={5} 
                 />
-              );
-            })}
-          </> 
+
+                {activeRouteId === 1 && QCity_Route1.map((stop) => {
+                  const currentInterval = getCurrentBusInterval();
+                  const etaText = currentInterval 
+                    ? `Next bus arriving in: ${getEstimatedWaitTime(currentInterval, stop.offsetMins)} mins`
+                    : "Buses are currently offline.";
+
+                  return (
+                    <Marker
+                      key={stop.id}
+                      coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
+                      title={stop.name}
+                      description={etaText}
+                      pinColor={BUS_ROUTES[1].color} 
+                    />
+                  );
+                })}
+              </>
+            )}
+          </>
         )}
 
         {markers.map((marker) => {
@@ -383,8 +442,45 @@ export default function TabOneScreen() {
         )}
       </View>
 
+      {showTransit && (
+        <View style={{ position: 'absolute', bottom: 170, left: 0, right: 0 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20 }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8].map((id) => {
+              const isActive = activeRouteId === id;
+              return (
+                <TouchableOpacity
+                  key={id}
+                  onPress={() => setActiveRouteId(isActive ? null : id)} // Toggle on/off
+                  style={{
+                    backgroundColor: isActive ? BUS_ROUTES[id].color : BRAND.white,
+                    paddingVertical: 10,
+                    paddingHorizontal: 16,
+                    borderRadius: 20,
+                    marginRight: 10,
+                    borderWidth: 2,
+                    borderColor: BUS_ROUTES[id].color,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                >
+                  <Text style={{ 
+                    color: isActive ? BRAND.white : BUS_ROUTES[id].color, 
+                    fontWeight: 'bold' 
+                  }}>
+                    Route {id}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       <TouchableOpacity 
-        style={[styles.reportButton, { bottom: 170, backgroundColor: showTransit ? BRAND.danger : BRAND.white }]} 
+        style={[styles.reportButton, { bottom: showTransit ? 240 : 170, backgroundColor: showTransit ? BRAND.danger : BRAND.white }]} 
         activeOpacity={0.8} 
         onPress={() => setShowTransit(!showTransit)}
       >
@@ -528,7 +624,7 @@ const styles = StyleSheet.create({
   },
   
   reportButton: {
-    position: 'absolute', bottom: 110, right: 25,
+    position: 'absolute', right: 25,
     backgroundColor: BRAND.navy, paddingVertical: 14, paddingHorizontal: 22,
     borderRadius: 30, flexDirection: 'row', alignItems: 'center',
     shadowColor: BRAND.navy, shadowOffset: { width: 0, height: 4 },
