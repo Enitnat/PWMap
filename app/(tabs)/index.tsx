@@ -1,25 +1,29 @@
+// /PWMap/app/(tabs)/index.tsx
+
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { decode } from 'base64-arraybuffer';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import * as Speech from 'expo-speech'; 
-import React, { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View, TextInput, ScrollView } from 'react-native'; 
-import MapView, { Marker, Region, Geojson, Polyline } from 'react-native-maps';
+import * as Speech from 'expo-speech';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View, TextInput, ScrollView } from 'react-native';
+import { Marker, Region, Geojson, Polyline } from 'react-native-maps';
+import MapView from 'react-native-map-clustering';
 import { supabase } from '../../lib/supabase';
 
-import lrt2Data from '../../assets/data/lrt2.json'; 
+import lrt2Data from '../../assets/data/lrt2.json';
 import busStopsData from '../../assets/data/busstops.json';
 
-import route1Data from '../../assets/data/QCity_Route1.json'; 
-import route2Data from '../../assets/data/QCity_Route2.json'; 
-import route3Data from '../../assets/data/QCity_Route3.json'; 
-import route4Data from '../../assets/data/QCity_Route4.json'; 
-import route5Data from '../../assets/data/QCity_Route5.json'; 
-import route6Data from '../../assets/data/QCity_Route6.json'; 
-import route7Data from '../../assets/data/QCity_Route7.json'; 
-import route8Data from '../../assets/data/QCity_Route8.json'; 
+import route1Data from '../../assets/data/QCity_Route1.json';
+import route2Data from '../../assets/data/QCity_Route2.json';
+import route3Data from '../../assets/data/QCity_Route3.json';
+import route4Data from '../../assets/data/QCity_Route4.json';
+import route5Data from '../../assets/data/QCity_Route5.json';
+import route6Data from '../../assets/data/QCity_Route6.json';
+import route7Data from '../../assets/data/QCity_Route7.json';
+import route8Data from '../../assets/data/QCity_Route8.json';
 
 const BUS_ROUTES: Record<number, any> = {
   1: { name: 'QC Hall - Cubao', data: route1Data, color: '#E63946' }, // Red
@@ -40,24 +44,24 @@ const lrt2TracksOnly = {
 };
 
 const BRAND = {
-  navy: '#0C3559',      
-  lightBlue: '#71A8D7', 
-  green: '#2CA959',     
-  mintBg: '#F0F7F4',    
+  navy: '#0C3559',
+  lightBlue: '#71A8D7',
+  green: '#2CA959',
+  mintBg: '#F0F7F4',
   white: '#FFFFFF',
-  danger: '#E74C3C',   
+  danger: '#E74C3C',
   gray: '#95A5A6',
 };
 
 const INITIAL_REGION: Region = {
-  latitude: 14.6760, 
+  latitude: 14.6760,
   longitude: 121.0437,
   latitudeDelta: 0.0922,
   longitudeDelta: 0.0421,
 };
 
 const getEstimatedWaitTime = (intervalMinutes: number, offsetMinutes: number) => {
-  const currentMinute = new Date().getMinutes(); 
+  const currentMinute = new Date().getMinutes();
   const cyclePosition = currentMinute % intervalMinutes;
   if (cyclePosition <= offsetMinutes) return offsetMinutes - cyclePosition;
   return intervalMinutes - (cyclePosition - offsetMinutes);
@@ -70,18 +74,18 @@ const getCurrentBusInterval = () => {
   const mins = now.getMinutes();
   const timeFloat = hour + (mins / 60);
 
-  if (day === 0) { 
+  if (day === 0) {
     if (timeFloat >= 8 && timeFloat <= 20) return 60;
     return null;
-  } else if (day === 6) { 
+  } else if (day === 6) {
     if (timeFloat >= 6.5 && timeFloat <= 20.5) return 30;
-    return null; 
-  } else { 
+    return null;
+  } else {
     if (timeFloat >= 6 && timeFloat < 11.5) return 10;
     if (timeFloat >= 11.5 && timeFloat < 16) return 30;
     if (timeFloat >= 16 && timeFloat < 20) return 10;
     if (timeFloat >= 20 && timeFloat <= 21) return 30;
-    return null; 
+    return null;
   }
 };
 
@@ -111,7 +115,7 @@ const QCity_Route1 = [
 ];
 
 const getDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3; 
+  const R = 6371e3;
   const p1 = (lat1 * Math.PI) / 180;
   const p2 = (lat2 * Math.PI) / 180;
   const dp = ((lat2 - lat1) * Math.PI) / 180;
@@ -122,7 +126,7 @@ const getDistanceInMeters = (lat1: number, lon1: number, lat2: number, lon2: num
     Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  return R * c; 
+  return R * c;
 };
 
 export default function TabOneScreen() {
@@ -136,9 +140,9 @@ export default function TabOneScreen() {
   const [showTransit, setShowTransit] = useState(false);
   const [activeRouteId, setActiveRouteId] = useState<number | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  
+
   const [isModalVisible, setModalVisible] = useState(false);
-  const [draftLocation, setDraftLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [draftLocation, setDraftLocation] = useState<{ latitude: number, longitude: number } | null>(null);
   const [image, setImage] = useState<string | null>(null);
   const [description, setDescription] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
@@ -148,6 +152,12 @@ export default function TabOneScreen() {
   useEffect(() => {
     initializeMapAndAuth();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchFacilities();
+    }, [])
+  );
 
   const initializeMapAndAuth = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -167,11 +177,11 @@ export default function TabOneScreen() {
         setErrorMsg('Permission to access location was denied');
         return;
       }
-      
+
       await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
-          distanceInterval: 5, 
+          distanceInterval: 5,
         },
         (newLocation) => {
           setLocation(newLocation);
@@ -205,7 +215,7 @@ export default function TabOneScreen() {
 
   const fetchFacilities = async () => {
     try {
-      const { data, error } = await supabase.from('facilities').select('*');
+      const { data, error } = await supabase.from('locations').select('');
       if (error) console.error("Supabase Fetch Error:", error);
       else if (data) setMarkers(data);
     } catch (err) {
@@ -224,12 +234,36 @@ export default function TabOneScreen() {
       return;
     }
 
+    let targetCityId = null;
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('city_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.city_id) {
+      targetCityId = profile.city_id;
+    } else {
+      const { data: qcData } = await supabase
+        .from('cities')
+        .select('id')
+        .eq('name', 'Quezon City')
+        .single();
+      targetCityId = qcData?.id;
+    }
+
+    if (!targetCityId) {
+      Alert.alert("Error", "Could not determine your city for this report.");
+      setIsUploading(false);
+      return;
+    }
+
     let publicImageUrl = null;
     if (image) {
       try {
         const base64 = await FileSystem.readAsStringAsync(image, { encoding: 'base64' });
-        const filePath = `${Date.now()}_facility.jpg`; 
-        
+        const filePath = `${Date.now()}_facility.jpg`;
+
         const { error: uploadError } = await supabase.storage
           .from('facility_images')
           .upload(filePath, decode(base64), { contentType: 'image/jpeg' });
@@ -237,26 +271,34 @@ export default function TabOneScreen() {
         if (!uploadError) {
           const { data: publicUrlData } = supabase.storage.from('facility_images').getPublicUrl(filePath);
           publicImageUrl = publicUrlData.publicUrl;
+        } else {
+          console.error("Storage upload error:", uploadError);
         }
       } catch (err) {
         console.error("File processing error:", err);
       }
     }
 
-    const { error } = await supabase.from('facilities').insert([{ 
-      type: dbType, 
-      latitude: draftLocation.latitude, 
+    const { error } = await supabase.from('location_reports').insert([{
+      city_id: targetCityId,
+      submitted_by: user.id,
+      type: dbType,
+      latitude: draftLocation.latitude,
       longitude: draftLocation.longitude,
       image_url: publicImageUrl,
       description: description.trim() === '' ? null : description.trim(),
-      user_id: user.id 
+      status: 'pending'
     }]);
 
     setIsUploading(false);
 
-    if (error) Alert.alert("Error", "Could not save marker. " + error.message);
-    else {
-      fetchFacilities();
+    if (error) {
+      Alert.alert("Error", "Could not submit report. " + error.message);
+    } else {
+      Alert.alert(
+        "Report Submitted!",
+        "Thank you! Your facility report has been sent to the community admins for review. It will appear on the map once verified."
+      );
       closeModal();
     }
   };
@@ -266,16 +308,16 @@ export default function TabOneScreen() {
 
     Alert.alert("Delete Marker", "Are you sure you want to remove this facility?", [
       { text: "Cancel", style: "cancel" },
-      { 
-        text: "Delete", 
-        style: "destructive", 
+      {
+        text: "Delete",
+        style: "destructive",
         onPress: async () => {
           const { error } = await supabase.from('facilities').delete().eq('id', selectedFacility.id);
           if (error) Alert.alert("Error", "Could not delete marker. " + error.message);
           else {
             Alert.alert("Deleted", "The marker has been removed.");
-            setSelectedFacility(null); 
-            fetchFacilities(); 
+            setSelectedFacility(null);
+            fetchFacilities();
           }
         }
       }
@@ -321,8 +363,8 @@ export default function TabOneScreen() {
     }
 
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'], 
-      allowsEditing: true, aspect: [4, 3], quality: 0.5, 
+      mediaTypes: ['images'],
+      allowsEditing: true, aspect: [4, 3], quality: 0.5,
     });
 
     if (!result.canceled) setImage(result.assets[0].uri);
@@ -339,18 +381,22 @@ export default function TabOneScreen() {
   const closeModal = () => {
     setModalVisible(false);
     setDraftLocation(null);
-    setImage(null); 
-    setDescription(''); 
+    setImage(null);
+    setDescription('');
   };
 
   return (
     <View style={styles.container}>
-      <MapView 
+      <MapView
         ref={mapRef}
         style={styles.map}
         initialRegion={INITIAL_REGION}
         showsUserLocation={true}
         onLongPress={handleMapLongPress}
+        clusterColor={BRAND.navy}
+        clusterTextColor={BRAND.white}
+        animationsEnabled={true}
+        layoutAnimationConf={{ duration: 400, create: { type: 'linear', property: 'opacity' }, update: { type: 'spring', springDamping: 0.4 }, delete: { type: 'linear', property: 'opacity' } }}
       >
         {showTransit && (
           <>
@@ -361,21 +407,21 @@ export default function TabOneScreen() {
                 coordinate={{ latitude: station.latitude, longitude: station.longitude }}
                 title={station.name}
                 description={`Next train arriving in: ${getEstimatedWaitTime(7, station.offsetMins)} mins`}
-                pinColor="#800080" 
+                pinColor="#800080"
               />
             ))}
 
             {activeRouteId && (
               <>
-                <Geojson 
-                  geojson={BUS_ROUTES[activeRouteId].data} 
-                  strokeColor={BUS_ROUTES[activeRouteId].color} 
-                  strokeWidth={5} 
+                <Geojson
+                  geojson={BUS_ROUTES[activeRouteId].data}
+                  strokeColor={BUS_ROUTES[activeRouteId].color}
+                  strokeWidth={5}
                 />
 
                 {activeRouteId === 1 && QCity_Route1.map((stop) => {
                   const currentInterval = getCurrentBusInterval();
-                  const etaText = currentInterval 
+                  const etaText = currentInterval
                     ? `Next bus arriving in: ${getEstimatedWaitTime(currentInterval, stop.offsetMins)} mins`
                     : "Buses are currently offline.";
 
@@ -385,7 +431,7 @@ export default function TabOneScreen() {
                       coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
                       title={stop.name}
                       description={etaText}
-                      pinColor={BUS_ROUTES[1].color} 
+                      pinColor={BUS_ROUTES[1].color}
                     />
                   );
                 })}
@@ -396,25 +442,25 @@ export default function TabOneScreen() {
 
         {markers.map((marker) => {
           const isRamp = marker.type === 'ramp';
-          const markerThemeColor = isRamp ? '#007BFF' : BRAND.green; 
+          const markerThemeColor = isRamp ? '#007BFF' : BRAND.green;
 
           return (
             <Marker
               key={marker.id}
               coordinate={{ latitude: marker.latitude, longitude: marker.longitude }}
               onPress={() => setSelectedFacility(marker)}
-              anchor={{ x: 0.5, y: 0.9 }} 
+              anchor={{ x: 0.5, y: 0.9 }}
             >
               <View style={styles.hugeBoundingBox}>
                 <View style={[styles.iconBubble, { borderColor: markerThemeColor }]}>
-                  <Image 
+                  <Image
                     source={
-                      isRamp 
-                        ? require('../../assets/images/RmpPWD.png') 
-                        : require('../../assets/images/ElevatorPW.png') 
+                      isRamp
+                        ? require('../../assets/images/RmpPWD.png')
+                        : require('../../assets/images/ElevatorPW.png')
                     }
                     style={styles.markerImage}
-                    resizeMode="contain" 
+                    resizeMode="contain"
                   />
                 </View>
                 <MaterialIcons name="arrow-drop-down" size={30} color={markerThemeColor} style={styles.markerPointer} />
@@ -466,9 +512,9 @@ export default function TabOneScreen() {
                     elevation: 3,
                   }}
                 >
-                  <Text style={{ 
-                    color: isActive ? BRAND.white : BUS_ROUTES[id].color, 
-                    fontWeight: 'bold' 
+                  <Text style={{
+                    color: isActive ? BRAND.white : BUS_ROUTES[id].color,
+                    fontWeight: 'bold'
                   }}>
                     Route {id}
                   </Text>
@@ -479,9 +525,9 @@ export default function TabOneScreen() {
         </View>
       )}
 
-      <TouchableOpacity 
-        style={[styles.reportButton, { bottom: showTransit ? 240 : 170, backgroundColor: showTransit ? BRAND.danger : BRAND.white }]} 
-        activeOpacity={0.8} 
+      <TouchableOpacity
+        style={[styles.reportButton, { bottom: showTransit ? 240 : 170, backgroundColor: showTransit ? BRAND.danger : BRAND.white }]}
+        activeOpacity={0.8}
         onPress={() => setShowTransit(!showTransit)}
       >
         <MaterialIcons name="directions-transit" size={24} color={showTransit ? BRAND.white : BRAND.navy} />
@@ -506,7 +552,7 @@ export default function TabOneScreen() {
             {image && <Image source={{ uri: image }} style={styles.previewImage} />}
 
             <TouchableOpacity style={[styles.button, styles.buttonPhoto]} activeOpacity={0.7} onPress={pickImage}>
-              <MaterialIcons name="photo-camera" size={20} color={BRAND.white} style={{marginRight: 8}} />
+              <MaterialIcons name="photo-camera" size={20} color={BRAND.white} style={{ marginRight: 8 }} />
               <Text style={styles.buttonText}>{image ? "Change Photo" : "Attach Photo"}</Text>
             </TouchableOpacity>
 
@@ -524,19 +570,19 @@ export default function TabOneScreen() {
             <View style={styles.divider} />
 
             {isUploading ? (
-              <View style={{alignItems: 'center', marginVertical: 20}}>
+              <View style={{ alignItems: 'center', marginVertical: 20 }}>
                 <ActivityIndicator size="large" color={BRAND.navy} />
-                <Text style={{marginTop: 10, color: BRAND.gray, fontWeight: '600'}}>Saving to PWD Map...</Text>
+                <Text style={{ marginTop: 10, color: BRAND.gray, fontWeight: '600' }}>Saving to PWD Map...</Text>
               </View>
             ) : (
               <>
                 <TouchableOpacity style={[styles.button, styles.buttonElevator]} activeOpacity={0.7} onPress={() => confirmSaveMarker('elevator')}>
-                  <MaterialIcons name="elevator" size={20} color={BRAND.white} style={{marginRight: 8}} />
+                  <MaterialIcons name="elevator" size={20} color={BRAND.white} style={{ marginRight: 8 }} />
                   <Text style={styles.buttonText}>Save as Elevator</Text>
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity style={[styles.button, styles.buttonRamp]} activeOpacity={0.7} onPress={() => confirmSaveMarker('ramp')}>
-                  <MaterialIcons name="accessible" size={20} color={BRAND.white} style={{marginRight: 8}} />
+                  <MaterialIcons name="accessible" size={20} color={BRAND.white} style={{ marginRight: 8 }} />
                   <Text style={styles.buttonText}>Save as Ramp</Text>
                 </TouchableOpacity>
               </>
@@ -553,7 +599,7 @@ export default function TabOneScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalView}>
             <Text style={styles.modalTitle}>{selectedFacility?.type?.toUpperCase()} DETAILS</Text>
-            
+
             {selectedFacility?.image_url ? (
               <Image source={{ uri: selectedFacility.image_url }} style={styles.previewImage} resizeMode="cover" />
             ) : (
@@ -572,7 +618,7 @@ export default function TabOneScreen() {
 
             {currentUserId === selectedFacility?.user_id && (
               <TouchableOpacity style={[styles.button, styles.buttonDelete]} activeOpacity={0.7} onPress={deleteMarker}>
-                <MaterialIcons name="delete-outline" size={20} color={BRAND.white} style={{marginRight: 8}} />
+                <MaterialIcons name="delete-outline" size={20} color={BRAND.white} style={{ marginRight: 8 }} />
                 <Text style={styles.buttonText}>Delete Marker</Text>
               </TouchableOpacity>
             )}
@@ -597,7 +643,7 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { width: '100%', height: '100%' },
-  
+
   searchContainer: {
     position: 'absolute', top: 60, left: 20, right: 20, flexDirection: 'row',
     backgroundColor: BRAND.white, borderRadius: 25, paddingHorizontal: 18,
@@ -609,39 +655,41 @@ const styles = StyleSheet.create({
 
   hugeBoundingBox: {
     width: 40, height: 40, alignItems: 'center', justifyContent: 'flex-start',
-    paddingTop: 5, backgroundColor: 'rgba(255, 255, 255, 0)', 
+    paddingTop: 5, backgroundColor: 'rgba(255, 255, 255, 0)',
   },
   iconBubble: {
     width: 30, height: 30, backgroundColor: BRAND.white, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center', borderWidth: 2.5,
     elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25, shadowRadius: 3.84, zIndex: 2, 
+    shadowOpacity: 0.25, shadowRadius: 3.84, zIndex: 2,
   },
   markerImage: { width: 25, height: 25 },
   markerPointer: {
     marginTop: -16, zIndex: 1, textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2,
   },
-  
+
   reportButton: {
-    position: 'absolute', right: 25,
+    position: 'absolute',
+    right: 25,
+    bottom: 100,
     backgroundColor: BRAND.navy, paddingVertical: 14, paddingHorizontal: 22,
     borderRadius: 30, flexDirection: 'row', alignItems: 'center',
     shadowColor: BRAND.navy, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 5, elevation: 8,
-    borderWidth: 2, borderColor: BRAND.green 
+    borderWidth: 2, borderColor: BRAND.green
   },
   reportButtonText: { color: BRAND.white, fontWeight: '800', marginLeft: 8, fontSize: 16 },
-  
+
   modalOverlay: { flex: 1, backgroundColor: 'rgba(12, 53, 89, 0.4)', justifyContent: 'center', alignItems: 'center' },
-  modalView: { 
-    width: '85%', backgroundColor: BRAND.white, borderRadius: 24, padding: 25, alignItems: 'center', 
-    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20, 
+  modalView: {
+    width: '85%', backgroundColor: BRAND.white, borderRadius: 24, padding: 25, alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20,
     elevation: 10, borderWidth: 1, borderColor: BRAND.mintBg
   },
   modalTitle: { marginBottom: 5, textAlign: 'center', fontSize: 22, fontWeight: '900', color: BRAND.navy, letterSpacing: 1 },
   coordText: { fontSize: 12, color: BRAND.gray, marginBottom: 10, fontWeight: '500' },
-  
+
   descriptionInput: {
     width: '100%', backgroundColor: BRAND.mintBg, borderColor: '#D1E3DD', borderWidth: 1,
     borderRadius: 12, padding: 12, marginTop: 10, minHeight: 60, textAlignVertical: 'top', color: BRAND.navy,
@@ -653,29 +701,29 @@ const styles = StyleSheet.create({
   descriptionLabel: { fontSize: 12, fontWeight: 'bold', color: BRAND.gray, marginBottom: 4 },
   descriptionText: { fontSize: 14, color: BRAND.navy, lineHeight: 20 },
 
-  button: { 
-    borderRadius: 14, padding: 15, marginBottom: 12, width: '100%', 
+  button: {
+    borderRadius: 14, padding: 15, marginBottom: 12, width: '100%',
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3, elevation: 2
   },
   buttonText: { color: BRAND.white, fontWeight: '700', fontSize: 16, textAlign: 'center' },
-  buttonPhoto: { backgroundColor: BRAND.lightBlue }, 
+  buttonPhoto: { backgroundColor: BRAND.lightBlue },
   buttonElevator: { backgroundColor: BRAND.green },
   buttonRamp: { backgroundColor: BRAND.navy },
   buttonDelete: { backgroundColor: BRAND.danger },
   buttonCancel: { backgroundColor: BRAND.mintBg, elevation: 0, borderWidth: 1, borderColor: '#D1E3DD' },
-  
+
   previewImage: { width: '100%', height: 180, borderRadius: 16, marginBottom: 20 },
-  noPhotoContainer: { 
-    width: '100%', height: 120, backgroundColor: BRAND.mintBg, borderRadius: 16, 
-    justifyContent: 'center', alignItems: 'center', marginBottom: 20 
+  noPhotoContainer: {
+    width: '100%', height: 120, backgroundColor: BRAND.mintBg, borderRadius: 16,
+    justifyContent: 'center', alignItems: 'center', marginBottom: 20
   },
   noPhotoText: { color: BRAND.gray, marginTop: 8, fontWeight: '600' },
-  
+
   divider: { height: 2, backgroundColor: BRAND.mintBg, width: '100%', marginVertical: 15, borderRadius: 1 },
-  errorOverlay: { 
-    position: 'absolute', top: 120, backgroundColor: BRAND.danger, padding: 12, 
-    borderRadius: 10, alignSelf: 'center', shadowColor: '#000', shadowOpacity: 0.2, 
+  errorOverlay: {
+    position: 'absolute', top: 120, backgroundColor: BRAND.danger, padding: 12,
+    borderRadius: 10, alignSelf: 'center', shadowColor: '#000', shadowOpacity: 0.2,
     shadowRadius: 4, elevation: 5
   },
   errorText: { color: BRAND.white, fontWeight: 'bold' },

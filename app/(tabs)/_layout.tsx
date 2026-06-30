@@ -1,3 +1,5 @@
+// /PWMap/app/(tabs)/_layout.tsx
+
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
