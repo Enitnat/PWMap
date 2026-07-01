@@ -6,19 +6,11 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech'; // <-- ADDED: Speech Library
 import React, { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native'; 
-import { supabase } from '../../lib/supabase';
-
-// --- CONSTANTS ---
-const BRAND = {
-  navy: '#0C3559',      
-  lightBlue: '#71A8D7', 
-  green: '#2CA959',     
-  mintBg: '#F0F7F4',    
-  white: '#FFFFFF',
-  danger: '#E74C3C',   
-  gray: '#95A5A6',
-};
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View, TextInput } from 'react-native'; 
+import { supabase } from './lib/supabase';
+import { CustomModal } from './components/ui/custom-modal';
+import { CustomAlert } from './components/ui/custom-alert';
+import { BRAND } from './constants/theme';
 
 const INITIAL_REGION: Region = {
   latitude: 14.6760, 
@@ -64,6 +56,36 @@ export default function TabOneScreen() {
 
   // View Facility State (Modal 2)
   const [selectedFacility, setSelectedFacility] = useState<any>(null);
+
+  // Custom Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    buttons?: Array<{
+      text: string;
+      style?: 'default' | 'cancel' | 'destructive';
+      onPress?: () => void;
+    }>;
+  } | null>(null);
+
+  const showAlert = (
+    title: string,
+    message: string,
+    buttons?: Array<{
+      text: string;
+      style?: 'default' | 'cancel' | 'destructive';
+      onPress?: () => void;
+    }>
+  ) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      buttons,
+    });
+  };
+
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -154,7 +176,7 @@ export default function TabOneScreen() {
 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      Alert.alert("Authentication Error", "Could not verify your session.");
+      showAlert("Authentication Error", "Could not verify your session.");
       setIsUploading(false);
       return;
     }
@@ -170,7 +192,7 @@ export default function TabOneScreen() {
           .upload(filePath, decode(base64), { contentType: 'image/jpeg' });
 
         if (uploadError) {
-          Alert.alert("Upload Failed", "Could not upload photo to the cloud.");
+          showAlert("Upload Failed", "Could not upload photo to the cloud.");
         } else {
           const { data: publicUrlData } = supabase.storage.from('facility_images').getPublicUrl(filePath);
           publicImageUrl = publicUrlData.publicUrl;
@@ -192,7 +214,7 @@ export default function TabOneScreen() {
     setIsUploading(false);
 
     if (error) {
-      Alert.alert("Error", "Could not save marker. " + error.message);
+      showAlert("Error", "Could not save marker. " + error.message);
     } else {
       fetchFacilities();
       closeModal();
@@ -202,7 +224,7 @@ export default function TabOneScreen() {
   const deleteMarker = async () => {
     if (!selectedFacility) return;
 
-    Alert.alert("Delete Marker", "Are you sure you want to remove this facility?", [
+    showAlert("Delete Marker", "Are you sure you want to remove this facility?", [
       { text: "Cancel", style: "cancel" },
       { 
         text: "Delete", 
@@ -210,9 +232,9 @@ export default function TabOneScreen() {
         onPress: async () => {
           const { error } = await supabase.from('facilities').delete().eq('id', selectedFacility.id);
           if (error) {
-            Alert.alert("Error", "Could not delete marker. " + error.message);
+            showAlert("Error", "Could not delete marker. " + error.message);
           } else {
-            Alert.alert("Deleted", "The marker has been removed.");
+            showAlert("Deleted", "The marker has been removed.");
             setSelectedFacility(null); 
             fetchFacilities(); 
           }
@@ -235,16 +257,16 @@ export default function TabOneScreen() {
           longitudeDelta: 0.01,
         }, 1000);
       } else {
-        Alert.alert("Not Found", "Could not find coordinates for that location.");
+        showAlert("Not Found", "Could not find coordinates for that location.");
       }
     } catch (error) {
-      Alert.alert("Search Error", "Unable to search right now. Please check your connection.");
+      showAlert("Search Error", "Unable to search right now. Please check your connection.");
     }
   };
 
   const handleReportAtCurrentLocation = () => {
     if (!location) {
-      Alert.alert("Location not ready", "Still getting your GPS coordinates...");
+      showAlert("Location not ready", "Still getting your GPS coordinates...");
       return;
     }
     setDraftLocation({
@@ -263,7 +285,7 @@ export default function TabOneScreen() {
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert('Permission required', 'We need access to your gallery to upload photos.');
+      showAlert('Permission required', 'We need access to your gallery to upload photos.');
       return;
     }
 
@@ -279,7 +301,7 @@ export default function TabOneScreen() {
 
   const confirmSaveMarker = (dbType: string) => {
     const facilityName = dbType === 'ramp' ? 'Ramp' : 'Elevator';
-    Alert.alert("Confirm Report", `Save this location as a ${facilityName}?`, [
+    showAlert("Confirm Report", `Save this location as a ${facilityName}?`, [
       { text: "Cancel", style: "cancel" },
       { text: "Save", style: "default", onPress: () => saveMarkerToDB(dbType) }
     ]);
@@ -292,6 +314,25 @@ export default function TabOneScreen() {
     setDescription(''); 
   };
 
+  const recenterToUserLocation = () => {
+    if (location) {
+      mapRef.current?.animateToRegion({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      }, 1000);
+    } else {
+      showAlert("Location not ready", "Still getting your GPS coordinates...");
+    }
+  };
+
+  const resetMapRotation = () => {
+    mapRef.current?.animateCamera({
+      heading: 0,
+    }, { duration: 1000 });
+  };
+
   // --- RENDER ---
   return (
     <View style={styles.container}>
@@ -300,6 +341,8 @@ export default function TabOneScreen() {
         style={styles.map}
         initialRegion={INITIAL_REGION}
         showsUserLocation={true}
+        showsMyLocationButton={false}
+        showsCompass={false}
         onLongPress={handleMapLongPress}
       >
         {markers.map((marker) => {
@@ -358,95 +401,106 @@ export default function TabOneScreen() {
       </TouchableOpacity>
 
       {/* 4. MODAL: ADD REPORT */}
-      <Modal animationType="slide" transparent={true} visible={isModalVisible} onRequestClose={closeModal}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>NEW REPORT</Text>
-            <Text style={styles.coordText}>
-              Target: {draftLocation?.latitude.toFixed(5)}, {draftLocation?.longitude.toFixed(5)}
-            </Text>
+      <CustomModal visible={isModalVisible} onClose={closeModal} title="NEW REPORT">
+        <Text style={styles.coordText}>
+          Target: {draftLocation?.latitude.toFixed(5)}, {draftLocation?.longitude.toFixed(5)}
+        </Text>
 
-            {image && <Image source={{ uri: image }} style={styles.previewImage} />}
+        {image && <Image source={{ uri: image }} style={styles.previewImage} />}
 
-            <TouchableOpacity style={[styles.button, styles.buttonPhoto]} activeOpacity={0.7} onPress={pickImage}>
-              <MaterialIcons name="photo-camera" size={20} color={BRAND.white} style={{marginRight: 8}} />
-              <Text style={styles.buttonText}>{image ? "Change Photo" : "Attach Photo"}</Text>
-            </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, styles.buttonPhoto]} activeOpacity={0.7} onPress={pickImage}>
+          <MaterialIcons name="photo-camera" size={20} color={BRAND.white} style={{marginRight: 8}} />
+          <Text style={styles.buttonText}>{image ? "Change Photo" : "Attach Photo"}</Text>
+        </TouchableOpacity>
 
-            <TextInput
-              style={styles.descriptionInput}
-              placeholder="Optional description (e.g., 'Behind the main stairs')"
-              placeholderTextColor={BRAND.gray}
-              value={description}
-              onChangeText={setDescription}
-              multiline={true}
-              numberOfLines={3}
-              maxLength={150}
-            />
+        <TextInput
+          style={styles.descriptionInput}
+          placeholder="Optional description (e.g., 'Behind the main stairs')"
+          placeholderTextColor={BRAND.gray}
+          value={description}
+          onChangeText={setDescription}
+          multiline={true}
+          numberOfLines={3}
+          maxLength={150}
+        />
 
-            <View style={styles.divider} />
+        <View style={styles.divider} />
 
-            {isUploading ? (
-              <View style={{alignItems: 'center', marginVertical: 20}}>
-                <ActivityIndicator size="large" color={BRAND.navy} />
-                <Text style={{marginTop: 10, color: BRAND.gray, fontWeight: '600'}}>Saving to PWD Map...</Text>
-              </View>
-            ) : (
-              <>
-                <TouchableOpacity style={[styles.button, styles.buttonElevator]} activeOpacity={0.7} onPress={() => confirmSaveMarker('elevator')}>
-                  <MaterialIcons name="elevator" size={20} color={BRAND.white} style={{marginRight: 8}} />
-                  <Text style={styles.buttonText}>Save as Elevator</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={[styles.button, styles.buttonRamp]} activeOpacity={0.7} onPress={() => confirmSaveMarker('ramp')}>
-                  <MaterialIcons name="accessible" size={20} color={BRAND.white} style={{marginRight: 8}} />
-                  <Text style={styles.buttonText}>Save as Ramp</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            <TouchableOpacity style={[styles.button, styles.buttonCancel]} activeOpacity={0.7} onPress={closeModal} disabled={isUploading}>
-              <Text style={[styles.buttonText, { color: BRAND.navy }]}>Cancel</Text>
-            </TouchableOpacity>
+        {isUploading ? (
+          <View style={{alignItems: 'center', marginVertical: 20}}>
+            <ActivityIndicator size="large" color={BRAND.navy} />
+            <Text style={{marginTop: 10, color: BRAND.gray, fontWeight: '600'}}>Saving to PWD Map...</Text>
           </View>
-        </View>
-      </Modal>
+        ) : (
+          <>
+            <TouchableOpacity style={[styles.button, styles.buttonElevator]} activeOpacity={0.7} onPress={() => confirmSaveMarker('elevator')}>
+              <MaterialIcons name="elevator" size={20} color={BRAND.white} style={{marginRight: 8}} />
+              <Text style={styles.buttonText}>Save as Elevator</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.button, styles.buttonRamp]} activeOpacity={0.7} onPress={() => confirmSaveMarker('ramp')}>
+              <MaterialIcons name="accessible" size={20} color={BRAND.white} style={{marginRight: 8}} />
+              <Text style={styles.buttonText}>Save as Ramp</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        <TouchableOpacity style={[styles.button, styles.buttonCancel]} activeOpacity={0.7} onPress={closeModal} disabled={isUploading}>
+          <Text style={[styles.buttonText, { color: BRAND.navy }]}>Cancel</Text>
+        </TouchableOpacity>
+      </CustomModal>
 
       {/* 5. MODAL: VIEW FACILITY */}
-      <Modal animationType="fade" transparent={true} visible={!!selectedFacility} onRequestClose={() => setSelectedFacility(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>{selectedFacility?.type?.toUpperCase()} DETAILS</Text>
-            
-            {selectedFacility?.image_url ? (
-              <Image source={{ uri: selectedFacility.image_url }} style={styles.previewImage} resizeMode="cover" />
-            ) : (
-              <View style={styles.noPhotoContainer}>
-                <MaterialIcons name="image-not-supported" size={40} color={BRAND.gray} />
-                <Text style={styles.noPhotoText}>No photo provided</Text>
-              </View>
-            )}
-
-            {selectedFacility?.description && (
-              <View style={styles.descriptionBox}>
-                <Text style={styles.descriptionLabel}>Notes:</Text>
-                <Text style={styles.descriptionText}>{selectedFacility.description}</Text>
-              </View>
-            )}
-
-            {currentUserId === selectedFacility?.user_id && (
-              <TouchableOpacity style={[styles.button, styles.buttonDelete]} activeOpacity={0.7} onPress={deleteMarker}>
-                <MaterialIcons name="delete-outline" size={20} color={BRAND.white} style={{marginRight: 8}} />
-                <Text style={styles.buttonText}>Delete Marker</Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity style={[styles.button, styles.buttonCancel]} activeOpacity={0.7} onPress={() => setSelectedFacility(null)}>
-              <Text style={[styles.buttonText, { color: BRAND.navy }]}>Close</Text>
-            </TouchableOpacity>
+      <CustomModal visible={!!selectedFacility} onClose={() => setSelectedFacility(null)} title={`${selectedFacility?.type?.toUpperCase()} DETAILS`}>
+        {selectedFacility?.image_url ? (
+          <Image source={{ uri: selectedFacility.image_url }} style={styles.previewImage} resizeMode="cover" />
+        ) : (
+          <View style={styles.noPhotoContainer}>
+            <MaterialIcons name="image-not-supported" size={40} color={BRAND.gray} />
+            <Text style={styles.noPhotoText}>No photo provided</Text>
           </View>
-        </View>
-      </Modal>
+        )}
+
+        {selectedFacility?.description && (
+          <View style={styles.descriptionBox}>
+            <Text style={styles.descriptionLabel}>Notes:</Text>
+            <Text style={styles.descriptionText}>{selectedFacility.description}</Text>
+          </View>
+        )}
+
+
+        {currentUserId === selectedFacility?.user_id && (
+          <TouchableOpacity style={[styles.button, styles.buttonDelete]} activeOpacity={0.7} onPress={deleteMarker}>
+            <MaterialIcons name="delete-outline" size={20} color={BRAND.white} style={{marginRight: 8}} />
+            <Text style={styles.buttonText}>Delete Marker</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={[styles.button, styles.buttonCancel]} activeOpacity={0.7} onPress={() => setSelectedFacility(null)}>
+          <Text style={[styles.buttonText, { color: BRAND.navy }]}>Close</Text>
+        </TouchableOpacity>
+      </CustomModal>
+
+      {/* --- CUSTOM ALERT CONTAINER --- */}
+      {alertConfig && (
+        <CustomAlert
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          buttons={alertConfig.buttons}
+          onClose={() => setAlertConfig(null)}
+        />
+      )}
+
+      {/* MAP CONTROLS */}
+      <View style={styles.mapControlsContainer}>
+        <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={recenterToUserLocation}>
+          <MaterialIcons name="my-location" size={24} color={BRAND.navy} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.mapControlBtn} activeOpacity={0.8} onPress={resetMapRotation}>
+          <MaterialIcons name="explore" size={24} color={BRAND.navy} />
+        </TouchableOpacity>
+      </View>
 
       {/* 6. ERROR OVERLAY */}
       {errorMsg && (
@@ -564,4 +618,30 @@ const styles = StyleSheet.create({
     shadowRadius: 4, elevation: 5
   },
   errorText: { color: BRAND.white, fontWeight: 'bold' },
+
+  // --- CUSTOM MAP CONTROLS ---
+  mapControlsContainer: {
+    position: 'absolute',
+    bottom: 240, // Above bottom buttons
+    right: 25,
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 12,
+    zIndex: 999,
+  },
+  mapControlBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: BRAND.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: BRAND.navy,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#E2EBE8',
+  },
 });
